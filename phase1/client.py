@@ -14,10 +14,10 @@ class Client:
 
         self.model = copy.deepcopy(model).to(device)
         self.train_loader = DataLoader(
-            train_dataset, batch_size=batch_size, shuffle=True, drop_last=True,num_workers=4,pin_memory=True
+            train_dataset, batch_size=batch_size, shuffle=True, drop_last=True,num_workers=0,pin_memory=False
         )
         self.test_loader = DataLoader(
-            test_dataset, batch_size=batch_size, shuffle=False,num_workers=4,pin_memory=True
+            test_dataset, batch_size=batch_size, shuffle=False,num_workers=0,pin_memory=False
         )
 
         self.criterion = nn.CrossEntropyLoss()

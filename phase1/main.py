@@ -54,8 +54,16 @@ def split_dirichlet(dataset, num_clients, alpha, num_classes=8, seed=42):
 
     return client_indices
 
-def run(args):
-    torch.manual_seed(42)
+
+
+def run(args,use_attack=True):
+    seed = 42 if not use_attack else 43
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+
+
+
+
     device = args.device
 
     # RocM用の記述
@@ -87,7 +95,7 @@ def run(args):
     # クライアント初期化
     clients = []
     for i in range(args.num_clients):
-        is_mali = (i < args.num_malicious)
+        is_mali = (i < args.num_malicious) and use_attack
         subset  = Subset(train_ds, client_indices[i]) if client_indices[i] else Subset(train_ds, [0])
         client  = Client(
             client_id     = i,
@@ -109,6 +117,12 @@ def run(args):
 
     # 学習ループ
     acc_history = []
+
+    # デバッグ用（確認後削除）
+    for r in range(args.rounds):
+        if r == 0:
+            mali_check = [c.is_malicious for c in clients]
+            print(f"[DEBUG] malicious flags: {mali_check}")
 
     for r in range(args.rounds):
         # 1. サーバ→クライアント：baseパラメータ配布
@@ -132,8 +146,10 @@ def run(args):
             accs = [clients[i].evaluate() for i in benign_ids]
             mean_acc = np.mean(accs)
             acc_history.append(mean_acc)
+            active_mali = args.num_malicious if use_attack else 0
             print(f"Round {r+1:3d} | Benign Acc: {mean_acc:.4f} "
-            f"| Malicious ratio: {args.num_malicious/args.num_clients:.0%}")
+                f"| Malicious ratio: {active_mali/args.num_clients:.0%}")
+
 
     return acc_history
 
@@ -141,8 +157,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser()
     parser.add_argument('--data_root',     type=str,   default='../data')
     parser.add_argument('--num_clients',   type=int,   default=20)
-    parser.add_argument('--num_malicious', type=int,   default=4)   # 20%
-    parser.add_argument('--alpha',         type=float, default=0.5) # Dirichlet
+    parser.add_argument('--num_malicious', type=int,   default=4)
+    parser.add_argument('--alpha',         type=float, default=0.5)
     parser.add_argument('--rounds',        type=int,   default=100)
     parser.add_argument('--local_epochs',  type=int,   default=1)
     parser.add_argument('--batch_size',    type=int,   default=32)
@@ -151,24 +167,31 @@ if __name__ == "__main__":
     parser.add_argument('--device',        type=str,   default='cuda')
     args = parser.parse_args()
 
-    # alpha（non-IID度）を変えて比較実験
     results = {}
-    for alpha in [10.0, 0.5, 0.1]:
-        args.alpha = alpha
-        results[alpha] = run(args)
+    for use_attack in [False, True]:
+        for alpha in [10.0, 0.5, 0.1]:
+            args.alpha = alpha
+            label = f"{'Attack' if use_attack else 'Clean'}_alpha={alpha}"
+            print(f"\n=== {label} ===")
+            results[label] = run(args, use_attack=use_attack)
 
-    # 結果プロット
+    # プロット
     os.makedirs('../outputs/phase1', exist_ok=True)
-    plt.figure(figsize=(10, 5))
-    for alpha, accs in results.items():
+    plt.figure(figsize=(12, 6))
+    colors    = {'10.0': 'blue', '0.5': 'orange', '0.1': 'green'}
+    for label, accs in results.items():
+        alpha_str = label.split('=')[1]
+        color     = colors[alpha_str]
+        linestyle = '--' if 'Attack' in label else '-'
         x = [(i+1)*args.eval_gap for i in range(len(accs))]
-        label = f"alpha={alpha} ({'IID-like' if alpha>=10 else 'strong non-IID' if alpha<=0.1 else 'moderate non-IID'})"
-        plt.plot(x, accs, label=label, linewidth=2)
+        plt.plot(x, accs, color=color, linestyle=linestyle,
+                linewidth=2, label=label)
+
     plt.xlabel("Round")
     plt.ylabel("Benign Client Accuracy")
-    plt.title("DEFT-FL Phase1: FedAvg (base only) under Label-Flip Attack")
-    plt.legend()
+    plt.title("DEFT-FL Phase1: Clean vs Attack (Label-Flip), varying alpha")
+    plt.legend(fontsize=9)
     plt.grid(True, alpha=0.3)
-    plt.savefig('../outputs/phase1/phase1_result.png', dpi=150)
+    plt.savefig('../outputs/phase1/phase1_result_no_attack.png', dpi=150)
     plt.show()
     print("\nOutputs saved to ../outputs/phase1/")
