@@ -1,54 +1,40 @@
 import torch
 import torch.nn as nn
-from torch import nn
 
-batch_size = 10
-
-class BaseHeadSplit(nn.Module):
-    def __init__(self,base,head):
-        super(BaseHeadSplit,self) .__init__()
-        self.base=base
-        self.head=head
-    
-    def forward(self,x):
-        out = self.base(x)
-        out = self.head(out)
-        return out
-
-
-class FedAvgCNN(nn.Module):
-    def __init__(self, in_features=1,num_classes=10,dim=1024):
-        seper().__init__()
-        self.conv1 = nn.Sequential(
-            nn.Conv2d(in_features,
-                        32,
-                        kernel_size=5,
-                        padding=0,
-                        stride=1,
-                        bias=True),
-            nn.ReLu(inplace=True),
-            nn.MaxPool2d(kernel_size=(2,2))
-            )
-        self.conv2 = nn.Sequential(
-            nn.Conv2d(32,
-                        64,
-                        kernel_size=5,
-                        padding=0,
-                        stride=1,
-                        bias=True),
-            nn.ReLu(inplace=True),
-            nn.MaxPool2d(kernel_size=(2,2))
-            )
-        self.fc1 = nn.Sequential(
-            nn.Linear(dim,512),
-            nn.ReLu(inplace=True)
+class GPFLModel(nn.Module):
+    """
+    DEFT-FL Phase1: 特徴抽出器(base) + 分類ヘッド(head)の層分離モデル
+    baseのみをサーバが集約し、headはクライアントがローカル保持する
+    """
+    def __init__(self, in_channels=3, num_classes=8):
+        super().__init__()
+        self.base = nn.Sequential(
+            nn.Conv2d(in_channels, 32, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(32, 64, 3, padding=1),  nn.ReLU(), nn.MaxPool2d(2),
+            nn.Conv2d(64, 128, 3, padding=1), nn.ReLU(), nn.MaxPool2d(2),
+            nn.Flatten()
         )
-        self.fc = nn.Linear(512,num_classes)
+        # ダミー入力でbase出力次元を自動計算
+        with torch.no_grad():
+            dummy = torch.zeros(1, in_channels, 28, 28)
+            feat_dim = self.base(dummy).shape[1]
 
-    def forward(self,x):
-        out=self.conv1(x)
-        out=self.conv2(out)
-        out=torch.flatten(out,1)
-        out=self.fc1(out)
-        out=self.fc(out)
-        return out
+        self.head = nn.Sequential(
+            nn.Linear(feat_dim, 256),
+            nn.ReLU(),
+            nn.Linear(256, num_classes)
+        )
+    def forward(self, x):
+        feat = self.base(x)
+        return self.head(feat)
+
+    def get_base_params(self):
+        """集約対象パラメータ（baseのみ）"""
+        return {k: v.clone() for k, v in self.state_dict().items()
+                if k.startswith('base')}
+
+    def set_base_params(self, base_params):
+        """サーバから受け取ったbaseパラメータを適用"""
+        state = self.state_dict()
+        state.update(base_params)
+        self.load_state_dict(state)
