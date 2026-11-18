@@ -4,8 +4,7 @@ import torch.nn as nn
 from torch.utils.data import DataLoader
 
 class Client:
-    def __init__(self, client_id, model, train_dataset, test_dataset,
-                 batch_size=32, lr=0.001, local_epochs=1, device='cpu'):
+    def __init__(self, client_id, model, train_dataset, test_dataset,batch_size=32, lr=0.001, local_epochs=1, device='cpu'):
         self.id           = client_id
         self.device       = device
         self.local_epochs = local_epochs

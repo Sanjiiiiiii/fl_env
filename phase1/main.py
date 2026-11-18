@@ -10,6 +10,7 @@ from model  import SimpleCNN
 from client import Client
 from server import Server
 
+//データセットの作成 bloodmnistをわざわざ使用するメリットが見当たらないため、後でmnistに変えておくこと
 def make_datasets(data_root='../data'):
     data = np.load(os.path.join(data_root, 'bloodmnist.npz'))
 
@@ -28,6 +29,7 @@ def make_datasets(data_root='../data'):
     test_ds  = BloodMNIST(data['test_images'],  data['test_labels'])
     return train_ds, test_ds
 
+//Non-IIDを作成するための心臓部
 def split_dirichlet(dataset, num_clients, alpha, num_classes=8, seed=42):
     rng = np.random.default_rng(seed)
     labels = np.array([dataset[i][1] for i in range(len(dataset))])
