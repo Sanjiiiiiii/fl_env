@@ -47,7 +47,10 @@ def main():
         args.alpha = cli.alpha
         args.rounds = cli.rounds
         args.num_clients = cli.num_clients
-        args.num_malicious = 0 if atk == "none" else cli.num_malicious
+        # 攻撃なしでも悪意クライアント数は変えない。
+        # 変えると評価対象の正常クライアント数がずれて、列同士を比べられなくなる。
+        # attack=none のときは、その枠のクライアントが正直に振る舞うだけ。
+        args.num_malicious = cli.num_malicious
         args.device = cli.device
         args.data_root = cli.data_root
         args.out = cli.out

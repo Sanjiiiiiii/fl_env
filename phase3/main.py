@@ -95,6 +95,8 @@ def run(args):
           f"| rounds={args.rounds} | seed={args.seed}")
     sizes = [c.train_size for c in clients]
     print(f"ローカル学習データ数: min={min(sizes)} max={max(sizes)} 合計={sum(sizes)}")
+    print(f"評価対象の正常クライアント: {len(benign_ids)}人 "
+          f"(悪意 {len(mal_ids)}人は評価から除外)")
     print(f"{'=' * 60}\n")
 
     history = []
@@ -125,7 +127,8 @@ def run(args):
                 shared = server.get_shared()
                 for c in clients:
                     c.set_shared(shared)
-            m = evaluate_clients(clients, benign_ids, args.num_classes)
+            m = evaluate_clients(clients, benign_ids, args.num_classes,
+                                 worst_min_test=args.worst_min_test)
             m["round"] = r
             m["train_loss"] = float(np.mean(losses))
             m["sec"] = round(time.time() - t0, 1)
@@ -136,7 +139,8 @@ def run(args):
                 n_mal_kept = len([i for i in sel if i in mal_ids])
                 picked = f" | 採用{len(sel)}人(うち悪意{n_mal_kept})"
             print(
-                f"Round {r:3d} | mean {m['mean_acc']:.4f} | worst {m['worst_acc']:.4f} "
+                f"Round {r:3d} | mean {m['mean_acc']:.4f} "
+                f"| worst {m['worst_acc']:.4f}(c{m['worst_id']}) "
                 f"| pooled {m['pooled_acc']:.4f} | min-recall {m['min_recall']:.4f}"
                 f"{picked} | {m['sec']}s"
             )
@@ -184,13 +188,18 @@ def build_parser():
     p.add_argument("--batch_size", type=int, default=32)
     p.add_argument("--lr", type=float, default=1e-3)
     p.add_argument("--eval_gap", type=int, default=5)
+    p.add_argument("--worst_min_test", type=int, default=5,
+                   help="worst_acc の対象にする最小テスト件数")
     p.add_argument("--seed", type=int, default=42)
     p.add_argument("--device", type=str, default="cuda")
-    p.add_argument("--algo", type=str, default="fedper", choices=["fedper", "gpfl"],help="fedper: 層分離のみ / gpfl: CoV+GCE つき (ICCV 2023)")
+    p.add_argument("--algo", type=str, default="fedper", choices=["fedper", "gpfl"],
+                   help="fedper: 層分離のみ / gpfl: CoV+GCE つき (ICCV 2023)")
     p.add_argument("--lamda", type=float, default=0.01, help="GPFL の norm 項の係数")
     p.add_argument("--mu", type=float, default=0.0, help="GPFL の CoV/GCE の weight_decay")
-    p.add_argument("--aggregator", type=str, default="fedavg",choices=["fedavg", "multikrum", "median", "trimmedmean", "boba", "local"])
-    p.add_argument("--attack", type=str, default="none",choices=["none", "label_flip", "sign_flip", "gaussian", "ipm", "alie"])
+    p.add_argument("--aggregator", type=str, default="fedavg",
+                   choices=["fedavg", "multikrum", "median", "trimmedmean", "boba", "local"])
+    p.add_argument("--attack", type=str, default="none",
+                   choices=["none", "label_flip", "sign_flip", "gaussian", "ipm", "alie"])
     p.add_argument("--ipm_gamma", type=float, default=10.0)
     p.add_argument("--attack_scale", type=float, default=10.0)
     return p
