@@ -16,7 +16,7 @@
     "seed": 42,
     "device": "cpu",
     "algo": "fedper",
-    "lamda": 0.01,
+    "lamda": 0.001,
     "mu": 0.0,
     "aggregator": "local",
     "attack": "none",
@@ -40,7 +40,7 @@
     ],
     "round": 60,
     "train_loss": 0.04817015276601355,
-    "sec": 5.0
+    "sec": 3.1
   },
   "label_dist": [
     [
